@@ -27,7 +27,10 @@ robot setting:
 2. change mode to remote  
 ![robot](./assets/3.png)
 
-open terminal in ubuntu system, input as:
+
+3. Download the model and put it in "./data/model/pvnet/cup":
+https://drive.google.com/file/d/1hV7gYzG4YwH2zRXlrlx7sC53Mx3fGTY1/view?usp=drive_link
+4. open terminal in ubuntu system, input as:
 ```
 python yuil_pvnet_yolo.py
 ```
@@ -43,4 +46,6 @@ make sure the 3D model of an object
 generate dataset of object  (code:
 https://github.com/zju3dv/pvnet-rendering) 
 ![datase](./assets/dataset.jpg)
+
+
 
