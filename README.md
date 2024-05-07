@@ -24,8 +24,8 @@ real_robot.xyz_move(pos,90)
 robot setting: 
 
 1. change speed to 80%
-2. change mode to remote
-![robot]((./assets/3.png))
+2. change mode to remote  
+![robot](./assets/3.png)
 
 open terminal in ubuntu system, input as:
 ```
@@ -33,11 +33,14 @@ python yuil_pvnet_yolo.py
 ```
 
 # Train a 6D pose estimation model
+
+how to train a 6D pose estimation model
+https://github.com/zju3dv/clean-pvnet
+
 make sure the 3D model of an object  
 ![3dmodel](./assets/2.gif)
 
-generate dataset of object   
+generate dataset of object  (code:
+https://github.com/zju3dv/pvnet-rendering) 
 ![datase](./assets/dataset.jpg)
 
-code:
-https://github.com/zju3dv/pvnet-rendering
