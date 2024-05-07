@@ -21,6 +21,13 @@ real_robot.xyz_move(pos,90)
 
 # grasping cup
 
+robot setting: 
+
+1. change speed to 80%
+2. change mode to remote
+![robot]((./assets/3.png))
+
+open terminal in ubuntu system, input as:
 ```
 python yuil_pvnet_yolo.py
 ```
