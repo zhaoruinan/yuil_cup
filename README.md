@@ -23,8 +23,9 @@ real_robot.xyz_move(pos,90)
 
 robot setting: 
 
-1. change speed to 80%
-2. change mode to remote  
+1. turn on robot server to "대기" status
+2. change speed to 80%
+3. change mode to remote  
 ![robot](./assets/3.png)
 
 
