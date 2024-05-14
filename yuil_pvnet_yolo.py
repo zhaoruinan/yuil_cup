@@ -1,3 +1,9 @@
+# 실행 방법
+# cd ~/clean-pvnet
+# source venv/bin/activate
+# python yuil_pvnet_yolo.py
+
+
 from lib.config import cfg, args
 import numpy as np
 import warnings
@@ -8,7 +14,7 @@ import sys
 import time
 import torch
 
-def PVNet():
+def PVNet(): # PVNet Thread (6D pose estimation) 
     from lib.utils.pvnet import pvnet_pose_utils
     from lib.networks import make_network
     from lib.utils.net_utils import load_network
@@ -25,10 +31,10 @@ def PVNet():
         # 'K': np.array([[433.983, 0., 325.083], # D405
         #               [0., 432.934, 241.882],
         #               [0., 0., 1.]]),
-        'K': np.array([[605.28, 0., 325.73],  # D435
+        'K': np.array([[605.28, 0., 325.73],  # D435 카메라의 Intrinsic parameters
                       [0., 603.868, 236.881],
                       [0., 0., 1.]]),
-        'kpt_3d': np.array([[3.31124291e-02, 3.00500095e-02, 1.39981493e-01], # cup
+        'kpt_3d': np.array([[3.31124291e-02, 3.00500095e-02, 1.39981493e-01], # cup 3D 모델의 3D keypoints 
                             [-3.00500002e-02, -3.31124291e-02, 1.39981493e-01],
                             [2.89015993e-02, -1.33980799e-03, 1.86264504e-09],
                             [-2.99086794e-02, 3.00500095e-02, 1.20750800e-01],
@@ -37,7 +43,7 @@ def PVNet():
                             [3.25382501e-03, -3.22385691e-02, 3.09616402e-02],
                             [7.84745812e-03, 3.15252990e-02, 3.17258015e-02],
                             [-5.00000000e-09, -5.00000000e-09, 7.01241509e-02]]),
-        'corner_3d': np.array([[-4.575335e-02, -4.575335e-02, 1.862645e-09],
+        'corner_3d': np.array([[-4.575335e-02, -4.575335e-02, 1.862645e-09], # cup 3D 모델의 3D 코너 (6D pose 바운딩 박스 시각화를 위해 사용) 
                                [-4.575335e-02, -4.575335e-02, 1.402483e-01],
                                [-4.575335e-02, 4.575334e-02, 1.862645e-09],
                                [-4.575335e-02, 4.575334e-02, 1.402483e-01],
@@ -60,23 +66,25 @@ def PVNet():
     while True:
         try:
             start = time.time()
+            
+            # 딥러닝 네트워크 입력을 위한 이미지 전처리
             demo_image = np.array(color_image).astype(np.float32)
             # demo_image = np.array(yolo_mask).astype(np.float32)
             inp = (((demo_image/255.)-mean)/std).transpose(2, 0, 1).astype(np.float32)
             inp = torch.Tensor(inp[None]).cuda()
             with torch.no_grad():
-                output = network(inp)
+                output = network(inp)   # 딥러닝 네트워크 inference
 
-            kpt_2d = output['kpt_2d'][0].detach().cpu().numpy()
+            kpt_2d = output['kpt_2d'][0].detach().cpu().numpy() # 추론한 2D keypoints 
 
-            mask = output['mask'][0].detach().cpu().numpy()
+            mask = output['mask'][0].detach().cpu().numpy() # 추론한 segmentation mask
 
             mask = mask*255
             mask = mask.astype(np.uint8)
 
-            pose_pred = pvnet_pose_utils.pnp(kpt_3d, kpt_2d, K)
+            pose_pred = pvnet_pose_utils.pnp(kpt_3d, kpt_2d, K) # PnP Algorithm을 통한 6D pose 추정
 
-            corner_2d_pred = pvnet_pose_utils.project(corner_3d, K, pose_pred)
+            corner_2d_pred = pvnet_pose_utils.project(corner_3d, K, pose_pred)  # 2D 바운딩 박스
             corner_2d_pred = corner_2d_pred.astype(np.int16)
 
             if np.all(np.logical_and(0 < kpt_2d[:, 0], kpt_2d[:, 0] <= 640)) and np.all(np.logical_and(0 < kpt_2d[:, 1], kpt_2d[:, 1] <= 480)):
@@ -88,7 +96,8 @@ def PVNet():
             pass
 
         time.sleep(0.001)
-def YOLO(weights='best.pt',  # model path or triton URL
+def YOLO(   # YOLO Thread (Classification)
+        weights='best.pt',  # model path or triton URL 
         source=0,  # file/dir/URL/glob/screen/0(webcam)
         data='coco128.yaml',  # dataset.yaml path
         imgsz=(640, 640),  # inference size (height, width)
@@ -167,6 +176,7 @@ def YOLO(weights='best.pt',  # model path or triton URL
 
     while True:
         try:
+            # 딥러닝 네트워크 입력을 위한 이미지 전처리
             image = color_image.copy()
 
             im = color_image.copy()
@@ -180,7 +190,7 @@ def YOLO(weights='best.pt',  # model path or triton URL
             if len(im.shape) == 3:
                 im = im[None]  # expand for batch dim
 
-            pred = model(im, augment=augment, visualize=visualize)
+            pred = model(im, augment=augment, visualize=visualize)  # 딥러닝 네트워크 inference
 
             pred = non_max_suppression(pred, conf_thres, iou_thres, classes, agnostic_nms, max_det=max_det)
             # print(pred)
@@ -200,7 +210,8 @@ def YOLO(weights='best.pt',  # model path or triton URL
                     det[:, :4] = scale_boxes(im.shape[2:], det[:, :4], im0.shape).round()
 
                     yolo_mask = np.zeros_like(image)
-
+                    
+                    # FOV 내에 컵이 여러개 있을 때, 가장 왼쪽의 컵만 선택하는 마스크 생성
                     sl = det[torch.argmin(det[:, 0])]   # or torch.argmax(det[:, 0])
 
                     min_u = int(sl[0]) - 10
@@ -213,7 +224,7 @@ def YOLO(weights='best.pt',  # model path or triton URL
 
         time.sleep(0.001)
 
-def Camera():
+def Camera():   # Camera Thread 
     ## License: Apache 2.0. See LICENSE file in root directory.
     ## Copyright(c) 2015-2017 Intel Corporation. All Rights Reserved.
 
@@ -316,7 +327,7 @@ def delay(robot):
             break
     time.sleep(0.1)
 
-def main():
+def main(): # Robot 동작 코드 예시 (상황에 맞게 수정 필요)
     global pose_pred
     global mask
     global kpt_2d
@@ -341,7 +352,7 @@ def main():
     delay(robot)
 
     time.sleep(7)
-    T_0c = np.array([[0, 0, 1, 0.2],
+    T_0c = np.array([[0, 0, 1, 0.2],    # robot base to camera
                      [-1, 0, 0, 0],
                      [0, -1, 0, -0.2],
                      [0, 0, 0, 1]])
@@ -358,14 +369,17 @@ def main():
 
             if np.all(np.logical_and(0 < c_kpt[:, 0], c_kpt[:, 0] <= 640)) and np.all(np.logical_and(0 < c_kpt[:, 1], c_kpt[:, 1] <= 480)) and c_pose[2, 3] > 0.2 and c_pose[2, 3] < 0.8:
                 T_co = np.eye(4)
+
+                # camera to object
                 T_co[0, 3] = pose_pred[0, 3]
                 T_co[1, 3] = pose_pred[1, 3]
                 T_co[2, 3] = pose_pred[2, 3]
 
-                T_0o = T_0c @ T_co
+                T_0o = T_0c @ T_co  # robot base to object = robot base to camera * camera to object
 
-                robot_pose = robot.robot_get_current_xyz_position() # [x, y, z, r, p, y] -> T_0o
+                robot_pose = robot.robot_get_current_xyz_position()
 
+                # 추정한 6D pose로 부터 로봇 동작 (필요에 따라 수정)
                 robot_pose[0] = T_0o[0, 3] * 1000 - 180
                 robot_pose[1] = T_0o[1, 3] * 1000 + 80*1
                 robot_pose[2] = Z
